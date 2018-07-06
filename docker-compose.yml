@@ -1,0 +1,9 @@
+version: '2'
+services:
+  app:
+    image: node:10.6.0-alpine
+    command: node test
+    working_dir: /app
+    volumes:
+    - ./src:/app/src:ro
+    - ./test:/app/test:ro

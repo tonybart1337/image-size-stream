@@ -1,0 +1,36 @@
+{
+  "name": "image-size-stream",
+  "version": "0.0.1",
+  "description": "Get image dimensions from stream",
+  "main": "index.js",
+  "keywords": [
+    "images",
+    "dimensions",
+    "png",
+    "jpg",
+    "stream",
+    "buffer"
+  ],
+  "author": "Anton Bartsits @ashtonroute",
+  "license": "MIT",
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "http://www.opensource.org/licenses/mit-license.php"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ashtonroute/image-size-stream.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ashtonroute/image-size-stream/issues"
+  },
+  "scripts": {
+    "test": "node test",
+    "start": "node src"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  }
+}
