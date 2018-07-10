@@ -9,18 +9,21 @@ const readFile = util.promisify(fs.readFile);
 const readdir = util.promisify(fs.readdir);
 const stat = util.promisify(fs.stat);
 
+const supportedTypes = new Set(ImageSizeStream.Types.map(t => t.mime.split('/')[1]));
+
 async function iterateFilesRecursive(dirpath, onFile) {
   const curFiles = await readdir(dirpath);
 
   for (const f of curFiles) {
-    if (f.endsWith('json')) continue;
     const curPath = path.join(dirpath, f);
     const curStats = await stat(curPath);
 
     if (curStats.isDirectory()) {
       await iterateFilesRecursive(curPath, onFile);
-      return;
+      continue;
     }
+
+    if (!supportedTypes.has(path.extname(f).substring(1))) continue;
 
     console.log(`Testing file ${curPath}...`);
     const assertData = JSON.parse(await readFile(`${curPath}.json`));
