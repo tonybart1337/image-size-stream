@@ -2,8 +2,10 @@ version: '2'
 services:
   app:
     image: node:10.6.0-alpine
-    command: node test
+    command: node --inspect=0.0.0.0:8080 test
     working_dir: /app
+    ports:
+    - 8080:8080
     volumes:
     - ./src:/app/src:ro
     - ./test:/app/test:ro

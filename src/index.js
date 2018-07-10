@@ -3,22 +3,43 @@ const { Transform } = require('stream');
 const Errors = require('./errors');
 const types = require('./types');
 
+let maxMimeChunk = 0;
+
+types.forEach(t => {
+  maxMimeChunk = Math.max(t.bytesToGetMime, maxMimeChunk);
+});
+
+const defaultOpts = {
+  requireMime: true,
+  requireDimensions: true,
+  maxMimeChunk,
+};
+
 class ImageSizeStream extends Transform {
   static get Errors() {
     return Errors;
   }
 
-  constructor(...args) {
+  static get Types() {
+    return types;
+  }
+
+  constructor(opts = {}, ...args) {
     super(...args);
-    
+
     this._sizeState = {
+      options: Object.assign({}, defaultOpts, opts),
       buffer: [],
       type: null,
       get mime() {
-        return this.type ? this.type.mime : null,
+        return this.type ? this.type.mime : null;
       },
-      dimensions: null,
+      get dimensions() {
+        return this.type ? this.type.dimensions : null;
+      },
+      bufferSize: 0,
       peekBytes: 0,
+      peekRangeBytes: null,
       readBytes: 0,
     };
   }
@@ -27,16 +48,38 @@ class ImageSizeStream extends Transform {
     try {
       this.push(chunk);
       const state = this._sizeState;
+      if (!state) {
+        cb();
+        return;
+      }
 
       if (state.mime && state.dimensions) {
         cb();
         return;
       }
 
-      state.buffer.push(chunk);
       state.readBytes += chunk.length;
 
-      if(!state.mime) {
+      if (state.peekRangeBytes) {
+        const [start] = state.peekRangeBytes;
+        if (state.readBytes < start) {
+          cb();
+          return;
+        }
+      }
+
+      state.buffer.push(chunk);
+      state.bufferSize += chunk.length;
+  
+      if (state.peekRangeBytes) {
+        const [, end] = state.peekRangeBytes;
+        if (state.readBytes < end) {
+          cb();
+          return;
+        }
+      }
+
+      if (!state.mime) {
         this._detectType();
 
         if (!state.mime) {
@@ -44,8 +87,8 @@ class ImageSizeStream extends Transform {
           return;
         }
       }
-  
-      if (state.readBytes >= state.peekBytes) {
+
+      if (state.bufferSize >= state.peekBytes) {
         this._peek(cb);
         return;
       }
@@ -62,27 +105,67 @@ class ImageSizeStream extends Transform {
   }
 
   _detectType() {
-    this._concatBuffer();
     const state = this._sizeState;
-    const [buf] = state.buffer;
+    if (!state) return;
 
-    const curTypr = types.find(t => t.detect(buf));
-    if (!curTypr) return;
+    this._concatBuffer();
 
-    state.type = curTypr;
+    let curType = null;
+    this.constructor.Types.some(t => {
+      curType = t.fromBuffer(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes);
+      return curType;
+    });
+    if (!curType) {
+      if (state.options.maxMimeChunk <= state.readBytes) {
+        throw new Errors.MimeTypeNotFoundError();
+      }
+
+      return;
+    }
+
+    state.type = curType;
     this.emit('mime', state.mime);
   }
 
   _peek(cb) {
-    this._concatBuffer();
     const state = this._sizeState;
-    const val = state.type.calculate(state.buffer[0]);
+    if (!state) {
+      cb();
+      return;
+    }
 
-    if (typeof val === 'object') {
-      state.dimensions = val;
+    this._concatBuffer();
+    const val = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes);
+
+    if (state.type.dimensions) {
       this.emit('dimensions', state.dimensions);
-    } else if (typeof val === 'number') {
-      state.peekBytes = this.readBytes + val;
+    } else if (val == null) { // discard buffer and request next chunk
+      state.buffer = [];
+      state.bufferSize = 0;
+      state.peekBytes = 0;
+    } else if (typeof val === 'object' && Array.isArray(val)) { // request exact range
+      const [start, end] = val;
+      const current = state.readBytes - state.bufferSize;
+
+      if (start < current || start > end) {
+        throw new Errors.RequestRangeBytesError({ start, end, current });
+      }
+
+      // we don't need current buffer
+      // if we haven't reached the starting point yet
+      if (state.readBytes < start) {
+        state.buffer = [];
+        state.bufferSize = 0;
+      }
+
+      state.peekBytes = end - start;
+      state.peekRangeBytes = [start, end];
+    } else if (typeof val === 'number') { // ask for more bytes
+      if (val < 0) {
+        throw new Errors.RequestNegativeBytesError(val);
+      }
+      
+      state.peekBytes = this.bufferSize + val;
     }
 
     cb();
@@ -95,9 +178,9 @@ class ImageSizeStream extends Transform {
       if (state) {
         let err = null;
         
-        if (!state.mime) {
+        if (state.options.requireMime && !state.mime) {
           err = new Errors.MimeTypeNotFoundError();
-        } else if (!state.dimensions) {
+        } else if (state.options.requireDimensions && !state.dimensions) {
           err = new Errors.DimensionsNotFoundError();
         }
 
@@ -128,6 +211,10 @@ class ImageSizeStream extends Transform {
   }
 
   _cleanUp () {
+    if (this._sizeState.type) {
+      this._sizeState.type.destroy();
+    }
+
     this._sizeState = null;
   }
 }

@@ -49,7 +49,35 @@ class DimensionsNotFoundError extends ExtendedError {
   }
 }
 
+class RequestNegativeBytesError extends ExtendedError {
+  constructor(bytes, ...args) {
+    super({ bytes }, ...args);
+  }
+
+  get defaultMessage() {
+    return `Got request for ${this.bytes} bytes. You can't request for negative amount of bytes`;
+  }
+}
+
+class RequestRangeBytesError extends ExtendedError {
+  constructor({ start, end, current }, ...args) {
+    super({ start, end, current }, ...args);
+  }
+  
+  get defaultMessage() {
+    if (this.start < this.current) {
+      return `Got request for range (${this.start}, ${this.end}) bytes. Start less than current (${this.start} < ${this.current}). You can't request for the bytes that have been already drained`;
+    } else if (this.start > this.end) {
+      return `Got request for range (${this.start}, ${this.end}) bytes. Start bigger than end`;
+    }
+
+    return '';
+  }
+}
+
 module.exports = {
   MimeTypeNotFoundError,
   DimensionsNotFoundError,
+  RequestNegativeBytesError,
+  RequestRangeBytesError,
 };
