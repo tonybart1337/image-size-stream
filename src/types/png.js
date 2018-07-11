@@ -30,8 +30,6 @@ module.exports = class PngType extends BaseType {
   }
 
   static _fromBuffer(buf) {
-    if (buf.length < this.bytesToGetMime) return null;
-
     const isValid = this.magicNumber.equals(buf.slice(0, this.magicNumber.length));
     if (!isValid) return null;
 

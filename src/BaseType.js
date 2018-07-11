@@ -16,9 +16,13 @@ module.exports = class BaseType {
     return this.magicNumber.length;
   }
 
-  static _fromBuffer() {}
+  static _fromBuffer(buffer) {
+    return this.magicNumber.equals(buffer.slice(0, this.magicNumber.length));
+  }
 
   static fromBuffer(buffer, firstByteOffset, lastByteOffset) {
+    if (buffer.length < this.bytesToGetMime) return null;
+
     const meta = this._fromBuffer(buffer, firstByteOffset, lastByteOffset);
     if (!meta) return null;
 
