@@ -25,8 +25,20 @@ async function iterateFilesRecursive(dirpath, onFile) {
 
     if (!supportedTypes.has(path.extname(f).substring(1))) continue;
 
+    let assertData = null;
+
+    try {
+      assertData = JSON.parse(await readFile(`${curPath}.json`));
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        console.log(`File ${curPath} has been skipped because no data file (${curPath}.json) was found`);
+        continue;
+      }
+
+      throw err;
+    }
+
     console.log(`Testing file ${curPath}...`);
-    const assertData = JSON.parse(await readFile(`${curPath}.json`));
     await Promise.resolve(onFile(curPath, assertData));
     console.log(`File ${curPath} has been processed`);
   }
