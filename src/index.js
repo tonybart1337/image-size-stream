@@ -112,7 +112,7 @@ class ImageSizeStream extends Transform {
 
     let curType = null;
     this.constructor.Types.some(t => {
-      curType = t.fromBuffer(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes);
+      curType = t.fromBuffer(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes + 1);
       return curType;
     });
     if (!curType) {
@@ -135,16 +135,26 @@ class ImageSizeStream extends Transform {
     }
 
     this._concatBuffer();
-    const val = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes);
+    const { type, value } = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes + 1);
 
-    if (state.type.dimensions) {
-      this.emit('dimensions', state.dimensions);
-    } else if (val == null) { // discard buffer and request next chunk
+    state.peekBytes = 0;
+    state.peekRangeBytes = null;
+
+    if (type === 'dimensions') {
+      this.emit('dimensions', value);
+    } else if (type === 'discard') { // discard buffer and request next chunk
       state.buffer = [];
       state.bufferSize = 0;
       state.peekBytes = 0;
-    } else if (typeof val === 'object' && Array.isArray(val)) { // request exact range
-      const [start, end] = val;
+    } else if (type === 'keep') { // keep output buffer and request next chunk
+      if (value) {
+        state.buffer = [value];
+        state.bufferSize = value.length;
+      }
+
+      state.peekBytes = 0;
+    } else if (type === 'range') { // request exact range
+      const { start, end } = value;
       const current = state.readBytes - state.bufferSize;
 
       if (start < current || start > end) {
@@ -160,12 +170,12 @@ class ImageSizeStream extends Transform {
 
       state.peekBytes = end - start;
       state.peekRangeBytes = [start, end];
-    } else if (typeof val === 'number') { // ask for more bytes
-      if (val < 0) {
-        throw new Errors.RequestNegativeBytesError(val);
+    } else if (type === 'add') { // ask for more bytes
+      if (value < 0) {
+        throw new Errors.RequestNegativeBytesError(value);
       }
-      
-      state.peekBytes = this.bufferSize + val;
+
+      state.peekBytes = state.bufferSize + value;
     }
 
     cb();

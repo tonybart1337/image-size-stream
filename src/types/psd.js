@@ -1,22 +1,22 @@
 const BaseType = require('../BaseType');
 
-const magicNumber = Buffer.from(new Uint8Array([0x42, 0x4D]));
-const dimensionsRange = [18, 22];
+const magicNumber = Buffer.from(new Uint8Array([0x38, 0x42, 0x50, 0x53]));
+const dimensionsRange = [14, 18];
 
-module.exports = class BmpType extends BaseType {
+module.exports = class GifType extends BaseType {
   static get magicNumber() {
     return magicNumber;
   }
 
   static get mime() {
-    return 'image/bmp';
+    return 'image/psd';
   }
 
   _findDimensions(buf, firstByteOffset, lastByteOffset) {
     if (firstByteOffset <= dimensionsRange[0] && lastByteOffset >= dimensionsRange[1]) {
       return this.createDimensions(
-        buf.readInt32LE(dimensionsRange[0] - firstByteOffset),
-        Math.abs(buf.readInt32LE(dimensionsRange[1] - firstByteOffset)),
+        buf.readUInt32BE(dimensionsRange[1] - firstByteOffset),
+        buf.readUInt32BE(dimensionsRange[0] - firstByteOffset),
         );
     }
 

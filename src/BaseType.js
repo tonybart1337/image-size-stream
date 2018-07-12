@@ -42,11 +42,11 @@ module.exports = class BaseType {
   }
 
   discard() {
-    return null;
+    return { type: 'discard', value: null };
   }
 
   add(val) {
-    return val;
+    return { type: 'add', value: val };
   }
 
   needMore(val) {
@@ -54,23 +54,26 @@ module.exports = class BaseType {
   }
 
   range(start, end) {
-    return [start, end];
+    return { type: 'range', value: { start, end } };
+  }
+
+  keep(val) {
+    return { type: 'keep', value: val };
   }
 
   createDimensions(width, height) {
-    return { width, height };
+    return { type: 'dimensions', value: { width, height } };
   }
 
   _findDimensions() {}
 
   findDimensions(buffer, firstByteOffset, lastByteOffset) {
-    const dims = this._findDimensions(buffer, firstByteOffset, lastByteOffset);
-    if (typeof dims === 'object' && !Array.isArray(dims)) {
-      this._dimensions = dims;
-      return this.dimensions;
+    const val = this._findDimensions(buffer, firstByteOffset, lastByteOffset);
+    if (val.type === 'dimensions') {
+      this._dimensions = val.value;
     }
 
-    return dims;
+    return val;
   }
 
   _destroy() {}

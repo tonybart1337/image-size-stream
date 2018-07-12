@@ -56,6 +56,6 @@ module.exports = class PngType extends BaseType {
           );
     }
 
-    return curType.dimensionsRange;
+    return this.range(curType.dimensionsRange[0], curType.dimensionsRange[1] + 4);
   }
 };

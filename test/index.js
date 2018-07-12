@@ -63,7 +63,7 @@ async function testFile(f, { mime, dimensions }) {
     curDims = dims;
 
     if (dims.width !== dimensions.width || dims.height !== dimensions.height) {
-      sizeStream.destroy(new Error(`Dimensions ${dims} doesn't match ${dimensions}`));
+      sizeStream.destroy(new Error(`Dimensions ${dims.width}x${dims.height} doesn't match ${dimensions.width}x${dimensions.height}`));
     }
   });
 
