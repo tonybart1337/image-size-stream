@@ -1,1 +1,7 @@
 /test
+.DS_Store
+.idea
+node_modules
+.npmrc
+/docker-compose.yml
+/.*
