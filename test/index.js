@@ -10,6 +10,7 @@ const readdir = util.promisify(fs.readdir);
 const stat = util.promisify(fs.stat);
 
 const supportedTypes = new Set(ImageSizeStream.Types.map(t => t.mime.split('/')[1]));
+const chunkSize = parseInt(process.env.CHUNK_SIZE || 10, 10);
 
 async function iterateFilesRecursive(dirpath, onFile) {
   const curFiles = await readdir(dirpath);
@@ -67,7 +68,7 @@ async function testFile(f, { mime, dimensions }) {
     }
   });
 
-  await pipeline(fs.createReadStream(f, { highWaterMark: 10 }), sizeStream, fs.createWriteStream('/dev/null'));
+  await pipeline(fs.createReadStream(f, { highWaterMark: chunkSize }), sizeStream, fs.createWriteStream('/dev/null'));
 }
 
 async function main() {

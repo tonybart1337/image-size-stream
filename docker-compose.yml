@@ -4,8 +4,10 @@ services:
     image: node:10.6.0-alpine
     command: node --inspect=0.0.0.0:8080 test
     working_dir: /app
+    environment:
+      CHUNK_SIZE: 10
     ports:
-    - 8080:8080
+    - 9229:8080
     volumes:
     - ./src:/app/src:ro
     - ./test:/app/test:ro

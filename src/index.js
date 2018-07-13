@@ -3,16 +3,18 @@ const { Transform } = require('stream');
 const Errors = require('./errors');
 const types = require('./types');
 
-let maxMimeChunk = 0;
+let maxMimeChunkOffset = 0;
 
 types.forEach(t => {
-  maxMimeChunk = Math.max(t.bytesToGetMime, maxMimeChunk);
+  maxMimeChunkOffset = Math.max(t.bytesToGetMime, maxMimeChunkOffset);
 });
 
 const defaultOpts = {
-  requireMime: true,
-  requireDimensions: true,
-  maxMimeChunk,
+  requireMime: () => true,
+  requireDimensions: () => true,
+  maxMimeChunkOffset,
+  maxMimeBufferSize: 4100,
+  maxDimensionsBufferSize: 1000,
 };
 
 class ImageSizeStream extends Transform {
@@ -116,7 +118,7 @@ class ImageSizeStream extends Transform {
       return curType;
     });
     if (!curType) {
-      if (state.options.maxMimeChunk <= state.readBytes) {
+      if (state.options.maxMimeChunkOffset <= state.readBytes || state.options.maxMimeBufferSize <= state.bufferSize) {
         throw new Errors.MimeTypeNotFoundError();
       }
 
@@ -177,6 +179,10 @@ class ImageSizeStream extends Transform {
 
       state.peekBytes = state.bufferSize + value;
     }
+    
+    if (!state.dimensions && state.options.maxDimensionsBufferSize <= state.bufferSize) {
+      throw new Errors.DimensionsNotFoundError();
+    }
 
     cb();
   }
@@ -188,9 +194,16 @@ class ImageSizeStream extends Transform {
       if (state) {
         let err = null;
         
-        if (state.options.requireMime && !state.mime) {
+        if (state.options.requireMime({
+          mime: state.mime,
+          readBytes: state.readBytes,
+        }) && !state.mime) {
           err = new Errors.MimeTypeNotFoundError();
-        } else if (state.options.requireDimensions && !state.dimensions) {
+        } else if (state.options.requireDimensions({
+          dimensions: state.dimensions,
+          mime: state.mime,
+          readBytes: state.readBytes,
+        }) && !state.dimensions) {
           err = new Errors.DimensionsNotFoundError();
         }
 
