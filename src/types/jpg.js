@@ -21,10 +21,6 @@ module.exports = class JpgType extends BaseType {
 
   constructor(...args) {
     super(...args);
-    
-    this._meta = {
-      lastMarkers: [],
-    };
   }
 
   _findDimensions(buf, firstByteOffset) {
@@ -80,11 +76,6 @@ module.exports = class JpgType extends BaseType {
         blockLength = curBuf.readUInt16BE(markerStartIdx + 2);
       }
 
-      // keep last 10 markers to skip thumbnails
-      if (this._meta.lastMarkers.length === 10) {
-        this._meta.lastMarkers.splice(0, 1);
-      }
-
       if (types.some(markerBuf => {
         return currentMarker === markerBuf;
       })) {
@@ -100,11 +91,9 @@ module.exports = class JpgType extends BaseType {
             curBuf.readUInt16BE(markerStartIdx + 5),
         );
       }
-      
-      this._meta.lastMarkers.push({ marker: `0x${currentMarker.toString(16).toUpperCase()}`, size: blockLength });
 
       // skip current marker block
-  
+
       const blockLengthIdx = markerStartIdx + blockLength + 2;
       curFirstByteOffset += blockLengthIdx;
 
