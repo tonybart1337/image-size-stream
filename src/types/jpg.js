@@ -3,9 +3,9 @@ const BaseType = require('../BaseType');
 const magicNumber = Buffer.from(new Uint8Array([0xFF, 0xD8, 0xFF]));
 
 const types = [
-  Buffer.from(new Uint8Array([0xFF, 0xC0])),
-  Buffer.from(new Uint8Array([0xFF, 0xC1])),
-  Buffer.from(new Uint8Array([0xFF, 0xC2])),
+  0xC0,
+  0xC1,
+  0xC2,
 ];
 
 const requiredBufDimsSize = 9; // 7 offset + 2 bytes to align Int16
@@ -14,49 +14,105 @@ module.exports = class JpgType extends BaseType {
   static get magicNumber() {
     return magicNumber;
   }
-
+  
   static get mime() {
     return 'image/jpeg';
   }
 
-  _findDimensions(buf, firstByteOffset, lastByteOffset) {
-    if (!buf.includes(0xFF)) {
-      return this.discard();
-    }
+  constructor(...args) {
+    super(...args);
+    
+    this._meta = {
+      lastMarkers: [],
+    };
+  }
 
-    // in case buffer has only one byte
-    // we keep current 0xFF and ask for next byte
-    if (buf.length === 1) {
-      return this.keep();
-    }
+  _findDimensions(buf, firstByteOffset) {
+    let markerStartIdx = null;
+    let curFirstByteOffset = firstByteOffset;
+    let curBuf = buf;
 
-    let SOFmarkerIdx = null;
-    types.some(markerBuf => {
-      const idx = buf.indexOf(markerBuf);
-      if (idx === -1) return false;
+    while (curBuf.length) {
+      markerStartIdx = curBuf.indexOf(0xFF);
+      if (markerStartIdx === -1) break;
+      
+      if (curBuf.length === 1 || markerStartIdx === curBuf.length - 1) {
+        return this.keep(curBuf.slice(curBuf.length - 1));
+      }
+      
+      const currentMarker = curBuf[markerStartIdx + 1];
+      
+      // skip reserved values
+      if (currentMarker === 0xFF) {
+        markerStartIdx += 1;
+        curFirstByteOffset += markerStartIdx;
+        
+        curBuf = curBuf.slice(markerStartIdx);
+        continue;
+      }
+      
+      // skip entropy-coded data and other empty block markers
+      if (currentMarker === 0x00 || (currentMarker >= 0xD0 && currentMarker <= 0xD9)) {
+        markerStartIdx += 2;
+        curFirstByteOffset += markerStartIdx;
 
-      SOFmarkerIdx = idx;
-      return true;
-    });
-
-    if (SOFmarkerIdx != null) {
-      // make sure buffer is big enough to read dimensions
-      const bufSize = SOFmarkerIdx + requiredBufDimsSize;
-
-      if (buf.length < bufSize) {
-        return this.range(firstByteOffset + SOFmarkerIdx, firstByteOffset + bufSize);
+        curBuf = curBuf.slice(markerStartIdx);
+        continue;
       }
 
-      return this.createDimensions(
-        buf.readUInt16BE(SOFmarkerIdx + 7),
-        buf.readUInt16BE(SOFmarkerIdx + 5),
-      );
-    }
+      let bytesToGetBlockLen = 3;
 
-    // in case buffer ends with 0xFF we should keep it
-    // to check next marker
-    if (buf[buf.length - 1] === 0xFF) {
-      return this.keep(buf.slice(buf.length - 1));
+      // define restart interval marker has 4 bytes block length
+      if (currentMarker === 0xDD) {
+        bytesToGetBlockLen += 2;
+      }
+
+      // check that buffer is big enough to read block length
+      if (curBuf.length - 1 < markerStartIdx + bytesToGetBlockLen) {
+        return this.range(curFirstByteOffset + markerStartIdx, curFirstByteOffset + markerStartIdx + bytesToGetBlockLen);
+      }
+
+      let blockLength = null;
+  
+      if (currentMarker === 0xDD) {
+        blockLength = curBuf.readUInt32BE(markerStartIdx + 2);
+      } else {
+        blockLength = curBuf.readUInt16BE(markerStartIdx + 2);
+      }
+
+      // keep last 10 markers to skip thumbnails
+      if (this._meta.lastMarkers.length === 10) {
+        this._meta.lastMarkers.splice(0, 1);
+      }
+
+      if (types.some(markerBuf => {
+        return currentMarker === markerBuf;
+      })) {
+        // make sure buffer is big enough to read dimensions
+        const bufSize = markerStartIdx + requiredBufDimsSize;
+
+        if (curBuf.length < bufSize) {
+          return this.range(curFirstByteOffset + markerStartIdx, curFirstByteOffset + bufSize);
+        }
+
+        return this.createDimensions(
+            curBuf.readUInt16BE(markerStartIdx + 7),
+            curBuf.readUInt16BE(markerStartIdx + 5),
+        );
+      }
+      
+      this._meta.lastMarkers.push({ marker: `0x${currentMarker.toString(16).toUpperCase()}`, size: blockLength });
+
+      // skip current marker block
+  
+      const blockLengthIdx = markerStartIdx + blockLength + 2;
+      curFirstByteOffset += blockLengthIdx;
+
+      if (curBuf.length - 1 < blockLengthIdx) {
+        return this.skipTo(curFirstByteOffset);
+      }
+
+      curBuf = curBuf.slice(blockLengthIdx);
     }
 
     return this.discard();

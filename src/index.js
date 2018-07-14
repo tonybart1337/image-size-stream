@@ -21,14 +21,14 @@ class ImageSizeStream extends Transform {
   static get Errors() {
     return Errors;
   }
-
+  
   static get Types() {
     return types;
   }
-
+  
   constructor(opts = {}, ...args) {
     super(...args);
-
+    
     this._sizeState = {
       options: Object.assign({}, defaultOpts, opts),
       buffer: [],
@@ -54,14 +54,14 @@ class ImageSizeStream extends Transform {
         cb();
         return;
       }
-
+      
       if (state.mime && state.dimensions) {
         cb();
         return;
       }
-
+      
       state.readBytes += chunk.length;
-
+      
       if (state.peekRangeBytes) {
         const [start] = state.peekRangeBytes;
         if (state.readBytes < start) {
@@ -80,41 +80,41 @@ class ImageSizeStream extends Transform {
           return;
         }
       }
-
+      
       if (!state.mime) {
         this._detectType();
-
+        
         if (!state.mime) {
           cb();
           return;
         }
       }
-
+      
       if (state.bufferSize >= state.peekBytes) {
         this._peek(cb);
         return;
       }
-
+      
       cb();
     } catch (err) {
       cb(err);
     }
   }
-
+  
   _concatBuffer() {
     const state = this._sizeState;
     state.buffer = [Buffer.concat(state.buffer)];
   }
-
+  
   _detectType() {
     const state = this._sizeState;
     if (!state) return;
-
+    
     this._concatBuffer();
-
+    
     let curType = null;
     this.constructor.Types.some(t => {
-      curType = t.fromBuffer(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes + 1);
+      curType = t.fromBuffer(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes - 1);
       return curType;
     });
     if (!curType) {
@@ -128,14 +128,14 @@ class ImageSizeStream extends Transform {
           this._sizeState = null;
         }
       }
-
+      
       return;
     }
-
+    
     state.type = curType;
     this.emit('mime', state.mime);
   }
-
+  
   _peek(cb) {
     const state = this._sizeState;
     if (!state) {
@@ -144,11 +144,17 @@ class ImageSizeStream extends Transform {
     }
 
     this._concatBuffer();
-    const { type, value } = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes + 1);
+    let [curBuf] = state.buffer;
+
+    if (state.peekRangeBytes) {
+      curBuf = curBuf.slice(state.bufferSize - (state.readBytes - state.peekRangeBytes[0]));
+    }
+
+    const { type, value } = state.type.findDimensions(curBuf, state.readBytes - curBuf.length, state.readBytes - 1);
 
     state.peekBytes = 0;
     state.peekRangeBytes = null;
-
+    
     if (type === 'dimensions') {
       this.emit('dimensions', value);
     } else if (type === 'discard') { // discard buffer and request next chunk
@@ -163,7 +169,7 @@ class ImageSizeStream extends Transform {
 
       state.peekBytes = 0;
     } else if (type === 'range') { // request exact range
-      const { start, end } = value;
+      const { start, end = start + 1 } = value;
       const current = state.readBytes - state.bufferSize;
 
       if (start < current || start > end) {
@@ -176,19 +182,19 @@ class ImageSizeStream extends Transform {
         state.buffer = [];
         state.bufferSize = 0;
       }
-
+      
       state.peekBytes = end - start;
       state.peekRangeBytes = [start, end];
     } else if (type === 'add') { // ask for more bytes
       if (value < 0) {
         throw new Errors.RequestNegativeBytesError(value);
       }
-
+      
       state.peekBytes = state.bufferSize + value;
     }
-
+    
     if (!state.dimensions && state.options.maxDimensionsBufferSize <= state.bufferSize) {
-      if (state.requireDimensions({
+      if (state.options.requireDimensions({
         dimensions: state.dimensions,
         mime: state.mime,
         readBytes: state.readBytes,
@@ -198,17 +204,17 @@ class ImageSizeStream extends Transform {
         this._sizeState = null;
       }
     }
-
+    
     cb();
   }
-
+  
   _flush(cb) {
     try {
       const state = this._sizeState;
-
+      
       if (state) {
         let err = null;
-
+        
         if (state.options.requireMime({
           mime: state.mime,
           readBytes: state.readBytes,
@@ -221,27 +227,27 @@ class ImageSizeStream extends Transform {
         }) && !state.dimensions) {
           err = new Errors.DimensionsNotFoundError();
         }
-
+        
         this._cleanUp();
-
+        
         if (err) {
           cb(err);
           return;
         }
       }
-
+      
       cb();
     } catch (err) {
       this._cleanUp();
       cb(err);
     }
   }
-
+  
   _cleanUp () {
     if (this._sizeState.type) {
       this._sizeState.type.destroy();
     }
-
+    
     this._sizeState = null;
   }
 }

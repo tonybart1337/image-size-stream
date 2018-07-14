@@ -13,7 +13,7 @@ module.exports = class GifType extends BaseType {
   }
 
   _findDimensions(buf, firstByteOffset, lastByteOffset) {
-    if (firstByteOffset <= dimensionsRange[0] && lastByteOffset >= dimensionsRange[1]) {
+    if (firstByteOffset <= dimensionsRange[0] && lastByteOffset >= dimensionsRange[1] + 2) {
       return this.createDimensions(
         buf.readUInt16LE(dimensionsRange[0] - firstByteOffset),
         buf.readUInt16LE(dimensionsRange[1] - firstByteOffset),
