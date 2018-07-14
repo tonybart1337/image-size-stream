@@ -9,6 +9,7 @@ const types = [
 ];
 
 const requiredBufDimsSize = 9; // 7 offset + 2 bytes to align Int16
+const bytesToGetBlockLen = 3;
 
 module.exports = class JpgType extends BaseType {
   static get magicNumber() {
@@ -31,13 +32,13 @@ module.exports = class JpgType extends BaseType {
     while (curBuf.length) {
       markerStartIdx = curBuf.indexOf(0xFF);
       if (markerStartIdx === -1) break;
-      
+
       if (curBuf.length === 1 || markerStartIdx === curBuf.length - 1) {
         return this.keep(curBuf.slice(curBuf.length - 1));
       }
-      
+
       const currentMarker = curBuf[markerStartIdx + 1];
-      
+
       // skip reserved values
       if (currentMarker === 0xFF) {
         markerStartIdx += 1;
@@ -46,7 +47,7 @@ module.exports = class JpgType extends BaseType {
         curBuf = curBuf.slice(markerStartIdx);
         continue;
       }
-      
+
       // skip entropy-coded data and other empty block markers
       if (currentMarker === 0x00 || (currentMarker >= 0xD0 && currentMarker <= 0xD9)) {
         markerStartIdx += 2;
@@ -56,25 +57,12 @@ module.exports = class JpgType extends BaseType {
         continue;
       }
 
-      let bytesToGetBlockLen = 3;
-
-      // define restart interval marker has 4 bytes block length
-      if (currentMarker === 0xDD) {
-        bytesToGetBlockLen += 2;
-      }
-
       // check that buffer is big enough to read block length
       if (curBuf.length - 1 < markerStartIdx + bytesToGetBlockLen) {
         return this.range(curFirstByteOffset + markerStartIdx, curFirstByteOffset + markerStartIdx + bytesToGetBlockLen);
       }
 
-      let blockLength = null;
-  
-      if (currentMarker === 0xDD) {
-        blockLength = curBuf.readUInt32BE(markerStartIdx + 2);
-      } else {
-        blockLength = curBuf.readUInt16BE(markerStartIdx + 2);
-      }
+      const blockLength = curBuf.readUInt16BE(markerStartIdx + 2);
 
       if (types.some(markerBuf => {
         return currentMarker === markerBuf;
