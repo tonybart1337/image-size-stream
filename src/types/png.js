@@ -16,6 +16,8 @@ const types = {
   },
 };
 
+// todo: add exif http://ftp-osl.osuosl.org/pub/libpng/documents/pngext-1.5.0.html#C.eXIf
+
 module.exports = class PngType extends BaseType {
   static get magicNumber() {
     return magicNumber;
