@@ -45,7 +45,15 @@ class MimeTypeNotFoundError extends ExtendedError {
 
 class DimensionsNotFoundError extends ExtendedError {
   get defaultMessage() {
-    return 'Couldn\'t determine dimensions';
+    let msg = 'Couldn\'t determine dimensions';
+    
+    if (this.bufferSize >= this.maxBufferSize) {
+      msg = `${msg}. Buffer ${this.bufferSize} bytes exceeded max size of ${this.maxBufferSize} bytes`;
+    } else if (this.requestedSize >= this.maxBufferSize) {
+      msg = `${msg}. Requested buffer size ${this.requestedSize} bytes exceeded max size of ${this.maxBufferSize} bytes`;
+    }
+
+    return msg;
   }
 }
 
@@ -60,18 +68,24 @@ class RequestNegativeBytesError extends ExtendedError {
 }
 
 class RequestRangeBytesError extends ExtendedError {
-  constructor({ start, end, current }, ...args) {
-    super({ start, end, current }, ...args);
-  }
-  
   get defaultMessage() {
-    if (this.start < this.current) {
-      return `Got request for range (${this.start}, ${this.end}) bytes. Start less than current (${this.start} < ${this.current}). You can't request for the bytes that have been already drained`;
+    let msg = `Got request for range (${this.start}, ${this.end}) bytes`;
+
+    if (this.start === this.current) {
+      msg = `${msg}.
+      "start" offset equals current (${this.start} == ${this.current}) and "end" offset equals buffer size.
+      You requested the same offsets that you received on the previous step.
+      This will cause an infinite loop that has been prevented for you`;
+    } else if (this.start < this.current) {
+      msg = `${msg}.
+      Start less than current (${this.start} < ${this.current}).
+      You can't request for the bytes that have been already drained`;
     } else if (this.start > this.end) {
-      return `Got request for range (${this.start}, ${this.end}) bytes. Start bigger than end`;
+      msg = `${msg}.
+      Start bigger than end`;
     }
 
-    return '';
+    return msg;
   }
 }
 

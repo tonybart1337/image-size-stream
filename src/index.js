@@ -12,10 +12,29 @@ types.forEach(t => {
 const defaultOpts = {
   requireMime: () => true,
   requireDimensions: () => true,
+  exif: () => false,
   maxMimeChunkOffset,
   maxMimeBufferSize: 4100,
   maxDimensionsBufferSize: 1000,
 };
+
+function toFn(val) {
+  return typeof val === 'function' ? val : () => val;
+}
+
+function mergeOpts(opts) {
+  const curOpts = Object.assign({}, defaultOpts, opts);
+
+  [
+    'requireMime',
+    'requireDimensions',
+    'exif',
+  ].forEach(k => {
+    curOpts[k] = toFn(curOpts[k]);
+  });
+
+  return curOpts;
+}
 
 class ImageSizeStream extends Transform {
   static get Errors() {
@@ -30,7 +49,7 @@ class ImageSizeStream extends Transform {
     super(...args);
     
     this._sizeState = {
-      options: Object.assign({}, defaultOpts, opts),
+      options: mergeOpts(opts),
       buffer: [],
       type: null,
       get mime() {
@@ -40,12 +59,12 @@ class ImageSizeStream extends Transform {
         return this.type ? this.type.dimensions : null;
       },
       bufferSize: 0,
-      peekBytes: 0,
-      peekRangeBytes: null,
-      readBytes: 0,
+      peekBytes: 0, // min buffer size required to exec peek
+      peekRangeBytes: null, // array of offsets [start, end] in the file to exec peek on
+      readBytes: 0, // bytes read so far
     };
   }
-  
+
   _transform(chunk, enc, cb) {
     try {
       this.push(chunk);
@@ -103,20 +122,25 @@ class ImageSizeStream extends Transform {
   
   _concatBuffer() {
     const state = this._sizeState;
+    if (state.buffer.length <= 1) return;
+
     state.buffer = [Buffer.concat(state.buffer)];
   }
   
   _detectType() {
     const state = this._sizeState;
     if (!state) return;
-    
+
     this._concatBuffer();
-    
+
     let curType = null;
+
     this.constructor.Types.some(t => {
       curType = t.fromBuffer(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes - 1);
+
       return curType;
     });
+
     if (!curType) {
       if (state.options.maxMimeChunkOffset <= state.readBytes || state.options.maxMimeBufferSize <= state.bufferSize) {
         if (state.options.requireMime({
@@ -131,7 +155,8 @@ class ImageSizeStream extends Transform {
       
       return;
     }
-    
+
+    curType.exif = state.options.exif(state.mime, state.readBytes);
     state.type = curType;
     this.emit('mime', state.mime);
   }
@@ -144,13 +169,18 @@ class ImageSizeStream extends Transform {
     }
 
     this._concatBuffer();
-    let [curBuf] = state.buffer;
+    const prevPeekRange = state.peekRangeBytes;
 
     if (state.peekRangeBytes) {
-      curBuf = curBuf.slice(state.bufferSize - (state.readBytes - state.peekRangeBytes[0]));
+      const [curBuf] = state.buffer;
+      state.buffer = [curBuf.slice(
+        state.bufferSize - (state.readBytes - state.peekRangeBytes[0]),
+      )];
+
+      state.bufferSize = state.buffer[0].length;
     }
 
-    const { type, value } = state.type.findDimensions(curBuf, state.readBytes - curBuf.length, state.readBytes - 1);
+    const { type, value } = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes - 1);
 
     state.peekBytes = 0;
     state.peekRangeBytes = null;
@@ -172,39 +202,54 @@ class ImageSizeStream extends Transform {
       const { start, end = start + 1 } = value;
       const current = state.readBytes - state.bufferSize;
 
-      if (start < current || start > end) {
+      if (start < current || start > end
+          || (prevPeekRange && start === prevPeekRange[0] && end === prevPeekRange[1])
+      ) {
         throw new Errors.RequestRangeBytesError({ start, end, current });
       }
+
+      state.peekBytes = end - start;
+      state.peekRangeBytes = [start, end];
 
       // we don't need current buffer
       // if we haven't reached the starting point yet
       if (state.readBytes < start) {
         state.buffer = [];
         state.bufferSize = 0;
+      } else if (state.readBytes - 1 >= end) { // requested size is within our buffer
+        this._peek(cb);
+        return;
       }
-      
-      state.peekBytes = end - start;
-      state.peekRangeBytes = [start, end];
     } else if (type === 'add') { // ask for more bytes
       if (value < 0) {
         throw new Errors.RequestNegativeBytesError(value);
       }
-      
+
       state.peekBytes = state.bufferSize + value;
     }
     
-    if (!state.dimensions && state.options.maxDimensionsBufferSize <= state.bufferSize) {
+    if (!state.dimensions &&
+      (state.options.maxDimensionsBufferSize <= state.bufferSize) // buffer size limit reached
+      || (state.options.maxDimensionsBufferSize < state.peekBytes) // requested buffer size exceeds the limit
+    ) {
       if (state.options.requireDimensions({
         dimensions: state.dimensions,
         mime: state.mime,
         readBytes: state.readBytes,
       })) {
-        throw new Errors.DimensionsNotFoundError();
+        throw new Errors.DimensionsNotFoundError({
+          maxBufferSize: state.options.maxDimensionsBufferSize,
+          bufferSize: state.bufferSize,
+          requestedSize: state.peekBytes,
+        });
       } else {
         this._sizeState = null;
+        
+        cb();
+        return;
       }
     }
-    
+
     cb();
   }
   
