@@ -89,9 +89,12 @@ class RequestRangeBytesError extends ExtendedError {
   }
 }
 
+class InvalidEXIFError extends ExtendedError {}
+
 module.exports = {
   MimeTypeNotFoundError,
   DimensionsNotFoundError,
   RequestNegativeBytesError,
   RequestRangeBytesError,
+  InvalidEXIFError,
 };

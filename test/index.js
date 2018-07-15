@@ -12,6 +12,11 @@ const stat = util.promisify(fs.stat);
 const supportedTypes = new Set(ImageSizeStream.Types.map(t => t.mime.split('/')[1]));
 const chunkSize = parseInt(process.env.CHUNK_SIZE || 10, 10);
 
+// needed to close stream when we got everything we need
+// as there is no way (as of node 10.6.0) that I'm aware of
+// to close the stream before hand w/o raising an error
+class IgnorePrematureCloseError extends Error {}
+
 async function iterateFilesRecursive(dirpath, onFile) {
   const curFiles = await readdir(dirpath);
 
@@ -45,8 +50,8 @@ async function iterateFilesRecursive(dirpath, onFile) {
   }
 }
 
-async function testFile(f, { mime, dimensions }) {
-  const sizeStream = new ImageSizeStream();
+async function testFile(f, { mime, dimensions, options = {} }) {
+  const sizeStream = new ImageSizeStream(options);
   let curMime = null;
   let curDims = null;
 
@@ -65,10 +70,19 @@ async function testFile(f, { mime, dimensions }) {
 
     if (dims.width !== dimensions.width || dims.height !== dimensions.height) {
       sizeStream.destroy(new Error(`Dimensions ${dims.width}x${dims.height} doesn't match ${dimensions.width}x${dimensions.height}`));
+      return;
     }
+
+    sizeStream.destroy(new IgnorePrematureCloseError());
   });
 
-  await pipeline(fs.createReadStream(f, { highWaterMark: chunkSize }), sizeStream, fs.createWriteStream('/dev/null'));
+  try {
+    await pipeline(fs.createReadStream(f, { highWaterMark: chunkSize }), sizeStream, fs.createWriteStream('/dev/null'));
+  } catch (err) {
+    if (err instanceof IgnorePrematureCloseError) return;
+
+    throw err;
+  }
 }
 
 async function main() {

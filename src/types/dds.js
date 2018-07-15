@@ -14,6 +14,8 @@ module.exports = class DdsType extends BaseType {
 
   _findDimensions(buf, firstByteOffset, lastByteOffset) {
     if (firstByteOffset <= dimensionsRange[0] && lastByteOffset >= dimensionsRange[1] + 4) {
+      this.finish();
+
       return this.createDimensions(
         buf.readUInt32LE(dimensionsRange[1] - firstByteOffset),
         buf.readUInt32LE(dimensionsRange[0] - firstByteOffset),

@@ -1,6 +1,7 @@
 module.exports = class BaseType {
   constructor(meta) {
     this._dimensions = null;
+    this._finished = false;
     this._meta = meta;
   }
   
@@ -39,6 +40,17 @@ module.exports = class BaseType {
   
   get dimensions() {
     return this._dimensions;
+  }
+
+  get finished() {
+    return this._finished;
+  }
+
+  _finish() {}
+  
+  finish() {
+    this._finish();
+    this._finished = true;
   }
   
   discard() {

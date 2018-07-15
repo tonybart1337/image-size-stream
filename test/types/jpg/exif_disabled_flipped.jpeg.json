@@ -1,0 +1,10 @@
+{
+  "mime": "image/jpeg",
+  "options": {
+    "exif": false
+  },
+  "dimensions": {
+    "width": 450,
+    "height": 600
+  }
+}

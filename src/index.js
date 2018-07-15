@@ -10,12 +10,13 @@ types.forEach(t => {
 });
 
 const defaultOpts = {
-  requireMime: () => true,
-  requireDimensions: () => true,
-  exif: () => false,
+  requireMime: true,
+  requireDimensions: true,
+  exif: false,
+  requireValidExif: false,
   maxMimeChunkOffset,
   maxMimeBufferSize: 4100,
-  maxDimensionsBufferSize: 1000,
+  maxDimensionsBufferSize: 64000,
 };
 
 function toFn(val) {
@@ -29,6 +30,7 @@ function mergeOpts(opts) {
     'requireMime',
     'requireDimensions',
     'exif',
+    'requireValidExif',
   ].forEach(k => {
     curOpts[k] = toFn(curOpts[k]);
   });
@@ -73,12 +75,12 @@ class ImageSizeStream extends Transform {
         cb();
         return;
       }
-      
-      if (state.mime && state.dimensions) {
+
+      if (state.mime && state.type.finished) {
         cb();
         return;
       }
-      
+
       state.readBytes += chunk.length;
       
       if (state.peekRangeBytes) {
@@ -94,7 +96,7 @@ class ImageSizeStream extends Transform {
 
       if (state.peekRangeBytes) {
         const [, end] = state.peekRangeBytes;
-        if (state.readBytes < end) {
+        if (state.readBytes <= end) {
           cb();
           return;
         }
@@ -157,6 +159,8 @@ class ImageSizeStream extends Transform {
     }
 
     curType.exif = state.options.exif(state.mime, state.readBytes);
+    curType.requireValidExif = state.options.requireValidExif;
+
     state.type = curType;
     this.emit('mime', state.mime);
   }

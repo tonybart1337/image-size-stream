@@ -14,6 +14,8 @@ module.exports = class BmpType extends BaseType {
 
   _findDimensions(buf, firstByteOffset, lastByteOffset) {
     if (firstByteOffset <= dimensionsRange[0] && lastByteOffset >= dimensionsRange[1] + 4) {
+      this.finish();
+
       return this.createDimensions(
         buf.readInt32LE(dimensionsRange[0] - firstByteOffset),
         Math.abs(buf.readInt32LE(dimensionsRange[1] - firstByteOffset)),

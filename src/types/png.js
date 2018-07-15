@@ -50,6 +50,8 @@ module.exports = class PngType extends BaseType {
     const curType = this._meta.type;
 
     if (firstByteOffset <= curType.dimensionsRange[0] && lastByteOffset >= curType.dimensionsRange[1] + 4) {
+      this.finish();
+
       return this.createDimensions(
           buf.readUInt32BE(curType.dimensionsRange[0] - firstByteOffset),
           buf.readUInt32BE(curType.dimensionsRange[1] - firstByteOffset),
