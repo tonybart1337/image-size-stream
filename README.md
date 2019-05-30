@@ -64,7 +64,7 @@ Key | Type | Default | Description
 --- | --- | --- | ---
 `requireMime` | `boolean` `function` | `true` | destroy stream if mime can't be found
 `requireDimensions` | `boolean` `function` | `true` | destroy stream if dimensions can't be found
-`exif` | `boolean` `function` | `true` | use EXIF (Orientation) data if available
+`exif` | `boolean` `function` | `false` | use EXIF (Orientation) data if available
 `requireValidExif` | `boolean` `function` | `false` | destroy stream on invalid EXIF data otherwise just skip EXIF block. Only useful if `exif` option returns true
 `maxMimeChunkOffset` | `number` | Minimum value possible | Whether to destroy the stream if we couldn't detect mime type after reading this amount of bytes
 `maxMimeBufferSize` | `number` in bytes | 4100 | Maximum buffer size when detecting mime type
