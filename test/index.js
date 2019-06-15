@@ -50,7 +50,14 @@ async function iterateFilesRecursive(dirpath, onFile) {
   }
 }
 
-async function testFile(f, { mime, dimensions, options = {} }) {
+async function testFile(f, assertData) {
+  const {
+    mime: assertMime,
+    dimensions: assertDims,
+    meta: assertMeta,
+    options = {},
+  } = assertData;
+
   const sizeStream = new ImageSizeStream(options);
   let curMime = null;
   let curDims = null;
@@ -58,19 +65,32 @@ async function testFile(f, { mime, dimensions, options = {} }) {
   sizeStream.on('mime', (type) => {
     console.log(`File ${f} is ${type}`);
     curMime = type;
-    
-    if (type !== mime) {
-      sizeStream.destroy(new Error(`Mime type ${type} doesn't match ${mime}`));
+
+    if (type !== assertMime) {
+      sizeStream.destroy(new Error(`Mime type ${type} doesn't match ${assertMime}`));
     }
   });
 
-  sizeStream.on('dimensions', (dims) => {
-    console.log(`File ${f} is ${curMime} ${dims.width}x${dims.height}`);
+  sizeStream.on('dimensions', (dims, meta) => {
+    console.log(`File ${f} is ${curMime} ${dims.width}x${dims.height} meta: ${JSON.stringify(meta)}`);
     curDims = dims;
 
-    if (dims.width !== dimensions.width || dims.height !== dimensions.height) {
-      sizeStream.destroy(new Error(`Dimensions ${dims.width}x${dims.height} doesn't match ${dimensions.width}x${dimensions.height}`));
+    if (dims.width !== assertDims.width || dims.height !== assertDims.height) {
+      sizeStream.destroy(new Error(`Dimensions ${dims.width}x${dims.height} doesn't match ${assertDims.width}x${assertDims.height}`));
       return;
+    }
+
+    if (assertMeta) {
+      const isValid = Object.keys(assertMeta).some(k => {
+        if (assertMeta[k] !== meta[k]) {
+          sizeStream.destroy(new Error(`Meta field "${k}" = "${assertMeta[k]}" doesn't match "${meta[k]}"`));
+          return false;
+        }
+
+        return true;
+      });
+
+      if (!isValid) return;
     }
 
     sizeStream.destroy(new IgnorePrematureCloseError());

@@ -96,26 +96,26 @@ function processExif(buf, firstByteOffset) {
       if (ifdOffset < 8) {
         return exif.fail('Invalid ifdOffset offset');
       }
-    
+
       exif.ifd0Offset = firstByteOffset + exif.localOffset + ifdOffset;
       exif.localOffset = ifdOffset;
     }
-  
+
     if (exif.ifd0Offset != null) {
       const orientation = getOrientationFromEXIF(buf, exif.localOffset, exif.isBigEndian);
       if (orientation >= 1 && orientation <= 8) {
-        this._meta.exif.orientation = orientation;
-      
+        exif.orientation = orientation;
+
         if (this.dimensions) {
           const dims = applyOrientation(orientation, this.dimensions);
           this.finish();
-        
-          return this.createDimensions(dims.width, dims.height);
+
+          return this.createDimensions(dims.width, dims.height, { orientation });
         }
       }
     }
 
-    return this._meta.exif.finish();
+    return exif.finish();
   } catch (err) {
     return exif.fail(err);
   }
@@ -193,9 +193,7 @@ module.exports = class JpgType extends BaseType {
             this.finish();
           }
   
-          this._meta.exif.finished = true;
-
-          return this.skipTo(firstByteOffset + blockLength + 2);
+          return this._meta.exif.finish();
         },
       };
 
@@ -216,16 +214,19 @@ module.exports = class JpgType extends BaseType {
         width: buf.readUInt16BE(markerStartIdx + 7),
         height: buf.readUInt16BE(markerStartIdx + 5),
       };
+      
+      const meta = {};
 
       if (!this.exif || (this._meta.exif && this._meta.exif.finished)) {
         if (this._meta.exif) {
+          meta.orientation = this._meta.exif.orientation;
           dims = applyOrientation(this._meta.exif.orientation, dims);
         }
 
         this.finish();
       }
 
-      return this.createDimensions(dims.width, dims.height);
+      return this.createDimensions(dims.width, dims.height, meta);
     }
 
     // skip current marker block

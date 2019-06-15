@@ -77,8 +77,8 @@ module.exports = class BaseType {
     return { type: 'keep', value: val };
   }
   
-  createDimensions(width, height) {
-    return { type: 'dimensions', value: { width, height } };
+  createDimensions(width, height, meta = {}) {
+    return { type: 'dimensions', value: { width, height }, meta };
   }
   
   _findDimensions() {}

@@ -184,13 +184,13 @@ class ImageSizeStream extends Transform {
       state.bufferSize = state.buffer[0].length;
     }
 
-    const { type, value } = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes - 1);
+    const { type, value, meta } = state.type.findDimensions(state.buffer[0], state.readBytes - state.bufferSize, state.readBytes - 1);
 
     state.peekBytes = 0;
     state.peekRangeBytes = null;
     
     if (type === 'dimensions') {
-      this.emit('dimensions', value);
+      this.emit('dimensions', value, meta);
     } else if (type === 'discard') { // discard buffer and request next chunk
       state.buffer = [];
       state.bufferSize = 0;

@@ -1,6 +1,6 @@
 {
   "name": "image-dimensions-stream",
-  "version": "0.0.8",
+  "version": "1.0.0",
   "description": "Get image dimensions from stream",
   "main": "src/index.js",
   "keywords": [
