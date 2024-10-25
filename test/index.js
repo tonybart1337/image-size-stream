@@ -9,7 +9,7 @@ const readFile = util.promisify(fs.readFile);
 const readdir = util.promisify(fs.readdir);
 const stat = util.promisify(fs.stat);
 
-const supportedTypes = new Set(ImageSizeStream.Types.map(t => t.mime.split('/')[1]));
+const supportedTypes = new Set(ImageSizeStream.Types.map(t => (t.mime.split('/')[1]).split('+')[0]));
 const chunkSize = parseInt(process.env.CHUNK_SIZE || 10, 10);
 
 // needed to close stream when we got everything we need
@@ -28,7 +28,7 @@ async function iterateFilesRecursive(dirpath, onFile) {
       await iterateFilesRecursive(curPath, onFile);
       continue;
     }
-
+    
     if (!supportedTypes.has(path.extname(f).substring(1))) continue;
 
     let assertData = null;

@@ -5,5 +5,6 @@ module.exports = [
   require('./gif'),
   require('./dds'),
   require('./psd'),
+  require('./svg'),
   require('./webp'),
 ];
