@@ -6,4 +6,5 @@ module.exports = [
   require('./dds'),
   require('./psd'),
   require('./svg'),
+  require('./webp'),
 ];

@@ -10,6 +10,7 @@ A [Node](https://nodejs.org/en/) module to get dimensions of any image file stre
 * PNG
 * PSD
 * DDS
+* WebP
 
 ### Upcoming
 
@@ -18,7 +19,6 @@ A [Node](https://nodejs.org/en/) module to get dimensions of any image file stre
 * ICO
 * ICNS
 * TIFF
-* WebP
 * SVG
 
 ## Programmatic Usage
